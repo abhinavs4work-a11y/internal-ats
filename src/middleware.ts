@@ -5,7 +5,7 @@ export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, ""),
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
@@ -35,8 +35,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/forgot-password") ||
-    pathname.startsWith("/auth/callback") ||
-    pathname.startsWith("/api/debug-env")
+    pathname.startsWith("/auth/callback")
   ) {
     if (user) {
       return NextResponse.redirect(new URL("/", request.url));
