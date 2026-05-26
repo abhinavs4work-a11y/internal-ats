@@ -35,7 +35,8 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/forgot-password") ||
-    pathname.startsWith("/auth/callback")
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/api/debug-env")
   ) {
     if (user) {
       return NextResponse.redirect(new URL("/", request.url));
