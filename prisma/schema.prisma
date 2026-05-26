@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  Admin
+  Recruiter
+}
+
+enum RolePriority {
+  High
+  Medium
+  Low
+}
+
+enum RoleStatus {
+  Active
+  OnHold
+  Inactive
+  Closed
+}
+
+enum CandidateSource {
+  InternalResdex
+  InternalLinkedIn
+  Reference
+  Agency
+}
+
+enum MappingStatus {
+  Submitted
+  R1
+  R2
+  ClientRound
+  Selected
+  Offered
+  Accepted
+  Onboarding
+  Rejected
+  CandidateWithdrawn
+}
+
+enum RejectionReason {
+  BudgetMismatch
+  PoorCommunication
+  TechnicalRejection
+  CandidateNotInterested
+  OfferDeclined
+  PositionClosed
+  Other
+}
+
+enum EntityType {
+  Candidate
+  Role
+  Client
+  Mapping
+  Margin
+}
+
+enum ActionType {
+  Created
+  Updated
+  Deleted
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  supabaseId   String   @unique @map("supabase_id")
+  name         String
+  email        String   @unique
+  role         UserRole @default(Recruiter)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  candidateMappings CandidateRoleMapping[] @relation("RecruiterMappings")
+  roleRecruiters    RoleRecruiter[]
+  activityLogs      ActivityLog[]
+  ownedCandidates   Candidate[]            @relation("CandidateOwner")
+
+  @@map("users")
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  clientId  String   @unique @map("client_id") // CLIENT-001
+  name      String
+  pocs      Json     @default("[]") // Array of {name: string, email: string}
+  notes     String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  roles Role[]
+
+  @@map("clients")
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  roleId      String       @unique @map("role_id") // TCS-001
+  title       String
+  clientId    String       @map("client_id")
+  budget      Decimal?     @db.Decimal(15, 2)
+  openings    Int          @default(1)
+  locations   String[]
+  jd          String?      @db.Text
+  priority    RolePriority @default(Medium)
+  status      RoleStatus   @default(Active)
+  poc         Json?        // { name: string, email: string } — selected POC from client's POC list
+  createdDate DateTime     @default(now()) @map("created_date")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  client     Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  recruiters RoleRecruiter[]
+  mappings   CandidateRoleMapping[]
+
+  @@map("roles")
+}
+
+model RoleRecruiter {
+  id          String   @id @default(uuid())
+  roleId      String   @map("role_id")
+  recruiterId String   @map("recruiter_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  role      Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  recruiter User @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, recruiterId])
+  @@map("role_recruiters")
+}
+
+model Candidate {
+  id                 String          @id @default(uuid())
+  candidateId        String          @unique @map("candidate_id") // CAN-00001
+  fullName           String          @map("full_name")
+  email              String          @unique
+  phone              String?
+  currentCtc         Decimal?        @map("current_ctc") @db.Decimal(15, 2)
+  expectedCtc        Decimal?        @map("expected_ctc") @db.Decimal(15, 2)
+  offersInHand       Boolean         @default(false) @map("offers_in_hand")
+  offerAmount        Decimal?        @map("offer_amount") @db.Decimal(15, 2)
+  currentLocation    String?         @map("current_location")
+  preferredLocations String[]        @map("preferred_locations")
+  source             CandidateSource @default(InternalLinkedIn)
+  availability       String?         // e.g. "30 days" or "LWD - 30 May"
+  notes              String?         @db.Text
+  resumeUrl          String?         @map("resume_url")
+  resumeFileName     String?         @map("resume_file_name")
+  dailyRate          Decimal?        @map("daily_rate") @db.Decimal(15, 2)
+  ownerId            String?         @map("owner_id")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  mappings          CandidateRoleMapping[]
+  marginCalculation MarginCalculation?
+  owner             User?                  @relation("CandidateOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@map("candidates")
+}
+
+model CandidateRoleMapping {
+  id                    String          @id @default(uuid())
+  candidateId           String          @map("candidate_id")
+  roleId                String          @map("role_id")
+  recruiterId           String          @map("recruiter_id")
+  clientPoc             String?         @map("client_poc")
+  submissionDate        DateTime        @default(now()) @map("submission_date")
+  status                MappingStatus   @default(Submitted)
+  rejectionReason       RejectionReason? @map("rejection_reason")
+  rejectionCustomReason String?         @map("rejection_custom_reason")
+  notes                 String?         @db.Text
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  candidate         Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  role              Role               @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  recruiter         User               @relation("RecruiterMappings", fields: [recruiterId], references: [id])
+  marginCalculation MarginCalculation?
+
+  @@unique([candidateId, roleId])
+  @@map("candidate_role_mappings")
+}
+
+model MarginCalculation {
+  id                     String   @id @default(uuid())
+  mappingId              String?  @unique @map("mapping_id")
+  candidateId            String?  @unique @map("candidate_id")
+  ectc                   Decimal  @db.Decimal(15, 2)
+  contingencyPercentage  Decimal  @map("contingency_percentage") @db.Decimal(5, 2)
+  contingencyAmount      Decimal  @map("contingency_amount") @db.Decimal(15, 2)
+  agencyMarkupPercentage Decimal  @default(7) @map("agency_markup_percentage") @db.Decimal(5, 2)
+  agencyMarkupAmount     Decimal  @map("agency_markup_amount") @db.Decimal(15, 2)
+  avkalanMarkupPercentage Decimal @default(0) @map("avkalan_markup_percentage") @db.Decimal(5, 2)
+  avkalanMarkupAmount    Decimal  @map("avkalan_markup_amount") @db.Decimal(15, 2)
+  passThrough            Decimal  @default(200) @map("pass_through") @db.Decimal(10, 2)
+  passThroughAmount      Decimal  @map("pass_through_amount") @db.Decimal(15, 2)
+  buyout                 Decimal  @default(0) @db.Decimal(15, 2)
+  totalCost              Decimal  @map("total_cost") @db.Decimal(15, 2)
+  dailyRate              Decimal  @map("daily_rate") @db.Decimal(15, 2)
+  monthlyRate            Decimal  @map("monthly_rate") @db.Decimal(15, 2)
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  mapping   CandidateRoleMapping? @relation(fields: [mappingId], references: [id], onDelete: SetNull)
+  candidate Candidate?            @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  @@map("margin_calculations")
+}
+
+model ActivityLog {
+  id         String     @id @default(uuid())
+  userId     String?    @map("user_id")
+  entityType EntityType @map("entity_type")
+  entityId   String     @map("entity_id")
+  oldValue   Json?      @map("old_value")
+  newValue   Json?      @map("new_value")
+  actionType ActionType @map("action_type")
+  description String?
+  timestamp  DateTime   @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@map("activity_logs")
+}

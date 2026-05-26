@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --radius: var(--radius);
+}
+
+@layer base {
+  :root {
+    /* ── Page background: very subtle cool-blue off-white ─────────────── */
+    --background: 230 28% 96%;
+    --foreground: 234 20% 14%;
+
+    /* ── Cards: pure white ────────────────────────────────────────────── */
+    --card: 0 0% 100%;
+    --card-foreground: 234 20% 14%;
+
+    /* ── Popover ──────────────────────────────────────────────────────── */
+    --popover: 0 0% 100%;
+    --popover-foreground: 234 20% 14%;
+
+    /* ── Primary: rich violet ─────────────────────────────────────────── */
+    --primary: 258 88% 59%;
+    --primary-foreground: 0 0% 100%;
+
+    /* ── Secondary ────────────────────────────────────────────────────── */
+    --secondary: 232 22% 93%;
+    --secondary-foreground: 234 20% 24%;
+
+    /* ── Muted ────────────────────────────────────────────────────────── */
+    --muted: 232 22% 93%;
+    --muted-foreground: 230 12% 50%;
+
+    /* ── Accent ───────────────────────────────────────────────────────── */
+    --accent: 232 22% 93%;
+    --accent-foreground: 234 20% 24%;
+
+    /* ── Destructive ──────────────────────────────────────────────────── */
+    --destructive: 0 82% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Border / Input ───────────────────────────────────────────────── */
+    --border: 228 20% 88%;
+    --input: 228 20% 88%;
+    --ring: 258 88% 59%;
+
+    /* ── Radius ───────────────────────────────────────────────────────── */
+    --radius: 0.625rem;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    font-family: var(--font-sans), 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans), 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ── Refined scrollbar ────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(228 20% 82%);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(258 30% 68%); }
+
+  /* ── Table header: subtle gradient ───────────────────────────────────── */
+  th {
+    background: linear-gradient(to bottom, #FAFAFF, #F3F4FB) !important;
+  }
+
+  /* ── Card / Panel surface ─────────────────────────────────────────────── */
+  .bg-white.rounded-xl,
+  .bg-white.rounded-2xl {
+    box-shadow: 0 1px 2px rgba(12, 10, 26, 0.04),
+                0 4px 16px rgba(12, 10, 26, 0.05);
+  }
+
+  /* ── Primary gradient button ──────────────────────────────────────────── */
+  .btn-gradient {
+    background: linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%);
+  }
+  .btn-gradient:hover {
+    background: linear-gradient(135deg, #6D28D9 0%, #4338CA 100%);
+    box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+  }
+
+  /* ── Sheet / Dialog polish ────────────────────────────────────────────── */
+  [data-radix-dialog-content],
+  [data-radix-sheet-content] {
+    box-shadow: -12px 0 48px rgba(12, 10, 26, 0.12) !important;
+  }
+
+  /* ── Input focus ring ─────────────────────────────────────────────────── */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+    border-color: #A78BFA !important;
+  }
+}
