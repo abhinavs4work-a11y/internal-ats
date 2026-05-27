@@ -11,31 +11,41 @@ export async function GET(request: NextRequest) {
   const recruiterId = searchParams.get("recruiterId") ?? "";
   const priority    = searchParams.get("priority")    ?? "";
 
-  const mappings = await prisma.candidateRoleMapping.findMany({
+  // Start from Role so zero-candidate roles still appear
+  const roles = await prisma.role.findMany({
     where: {
-      ...(clientId    ? { role: { clientId } }                              : {}),
-      ...(recruiterId ? { recruiterId }                                     : {}),
-      ...(priority    ? { role: { priority: priority as any } }             : {}),
+      status: { not: "Closed" },
+      ...(clientId   ? { clientId }                : {}),
+      ...(priority   ? { priority: priority as any } : {}),
+      ...(recruiterId ? {
+        OR: [
+          { recruiters: { some: { recruiterId } } },
+          { mappings:   { some: { recruiterId } } },
+        ],
+      } : {}),
     },
     select: {
-      id:          true,
-      status:      true,
-      recruiterId: true,
-      role: {
+      id:       true,
+      roleId:   true,
+      title:    true,
+      status:   true,
+      priority: true,
+      client:   { select: { id: true, name: true } },
+      recruiters: {
+        select: { recruiter: { select: { id: true, name: true } } },
+      },
+      mappings: {
+        ...(recruiterId ? { where: { recruiterId } } : {}),
         select: {
-          id:       true,
-          roleId:   true,
-          title:    true,
-          status:   true,
-          priority: true,
-          client:   { select: { id: true, name: true } },
+          status:      true,
+          recruiterId: true,
+          recruiter:   { select: { id: true, name: true } },
         },
       },
-      recruiter: { select: { id: true, name: true } },
     },
+    orderBy: [{ client: { name: "asc" } }, { roleId: "asc" }],
   });
 
-  // ── aggregate by (roleId, recruiterId) ─────────────────────────────────────
   type Row = {
     roleDbId:      string;
     roleId:        string;
@@ -55,49 +65,71 @@ export async function GET(request: NextRequest) {
     withdrawn:     number;
   };
 
-  const map = new Map<string, Row>();
-
-  for (const m of mappings) {
-    const key = `${m.role.id}__${m.recruiterId}`;
-    if (!map.has(key)) {
-      map.set(key, {
-        roleDbId:      m.role.id,
-        roleId:        m.role.roleId,
-        roleTitle:     m.role.title,
-        roleStatus:    m.role.status,
-        rolePriority:  m.role.priority,
-        clientId:      m.role.client.id,
-        clientName:    m.role.client.name,
-        recruiterId:   m.recruiter.id,
-        recruiterName: m.recruiter.name,
-        submitted:  0,
-        interviews: 0,
-        selected:   0,
-        offered:    0,
-        rejected:   0,
-        onboarding: 0,
-        withdrawn:  0,
-      });
-    }
-    const row = map.get(key)!;
-    const s = m.status;
-    row.submitted++;
-    if (s === "R1" || s === "R2" || s === "ClientRound") row.interviews++;
-    if (s === "Selected")                                 row.selected++;
-    if (s === "Offered"  || s === "Accepted")             row.offered++;
-    if (s === "Rejected")                                 row.rejected++;
-    if (s === "Onboarding")                               row.onboarding++;
-    if (s === "CandidateWithdrawn")                       row.withdrawn++;
+  function zeroRow(role: typeof roles[0], recruiterId: string, recruiterName: string): Row {
+    return {
+      roleDbId:      role.id,
+      roleId:        role.roleId,
+      roleTitle:     role.title,
+      roleStatus:    role.status,
+      rolePriority:  role.priority,
+      clientId:      role.client.id,
+      clientName:    role.client.name,
+      recruiterId,
+      recruiterName,
+      submitted:  0,
+      interviews: 0,
+      selected:   0,
+      offered:    0,
+      rejected:   0,
+      onboarding: 0,
+      withdrawn:  0,
+    };
   }
 
-  const rows = Array.from(map.values()).sort((a, b) =>
+  const allRows: Row[] = [];
+
+  for (const role of roles) {
+    // Aggregate existing mappings by recruiterId
+    const mappingMap = new Map<string, Row>();
+
+    for (const m of role.mappings) {
+      if (!mappingMap.has(m.recruiterId)) {
+        mappingMap.set(m.recruiterId, zeroRow(role, m.recruiter.id, m.recruiter.name));
+      }
+      const row = mappingMap.get(m.recruiterId)!;
+      const s = m.status;
+      row.submitted++;
+      if (s === "R1" || s === "R2" || s === "ClientRound") row.interviews++;
+      if (s === "Selected")                                row.selected++;
+      if (s === "Offered"  || s === "Accepted")            row.offered++;
+      if (s === "Rejected")                                row.rejected++;
+      if (s === "Onboarding")                              row.onboarding++;
+      if (s === "CandidateWithdrawn")                      row.withdrawn++;
+    }
+
+    if (mappingMap.size > 0) {
+      // Role has submissions — show per-recruiter rows as before
+      allRows.push(...Array.from(mappingMap.values()));
+    } else {
+      // No submissions yet — show one zero row per assigned recruiter
+      if (role.recruiters.length > 0) {
+        for (const rr of role.recruiters) {
+          allRows.push(zeroRow(role, rr.recruiter.id, rr.recruiter.name));
+        }
+      } else {
+        // No recruiters assigned either — still surface the role
+        allRows.push(zeroRow(role, "", "Unassigned"));
+      }
+    }
+  }
+
+  allRows.sort((a, b) =>
     a.clientName.localeCompare(b.clientName) ||
     a.roleId.localeCompare(b.roleId) ||
     a.recruiterName.localeCompare(b.recruiterName)
   );
 
-  // ── summary totals ──────────────────────────────────────────────────────────
-  const summary = rows.reduce(
+  const summary = allRows.reduce(
     (acc, r) => ({
       submitted:  acc.submitted  + r.submitted,
       interviews: acc.interviews + r.interviews,
@@ -108,7 +140,6 @@ export async function GET(request: NextRequest) {
     { submitted: 0, interviews: 0, selected: 0, offered: 0, rejected: 0 }
   );
 
-  // ── filter options ──────────────────────────────────────────────────────────
   const clients = await prisma.client.findMany({
     select: { id: true, name: true },
     orderBy: { name: "asc" },
@@ -118,5 +149,5 @@ export async function GET(request: NextRequest) {
     orderBy: { name: "asc" },
   });
 
-  return NextResponse.json({ rows, summary, clients, recruiters });
+  return NextResponse.json({ rows: allRows, summary, clients, recruiters });
 }

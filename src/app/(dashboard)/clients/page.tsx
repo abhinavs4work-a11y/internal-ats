@@ -151,8 +151,8 @@ export default function ClientsPage() {
         />
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200">
+      {/* Table — desktop */}
+      <div className="hidden md:block bg-white rounded-xl border border-slate-200">
         <Table>
           <TableHeader>
             <TableRow>
@@ -240,6 +240,75 @@ export default function ClientsPage() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile cards — clients */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 animate-pulse space-y-3">
+              <div className="h-4 bg-slate-100 rounded w-1/3" />
+              <div className="h-3 bg-slate-100 rounded w-2/3" />
+              <div className="h-3 bg-slate-100 rounded w-1/2" />
+            </div>
+          ))
+        ) : clients.length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            <Building2 size={32} className="mx-auto mb-2 opacity-30" />
+            <p>No clients yet. Add your first client.</p>
+          </div>
+        ) : (
+          clients.map((client) => {
+            const pocs = client.pocs as unknown as ClientPoc[];
+            return (
+              <div
+                key={client.id}
+                className="bg-white rounded-xl border border-slate-200 overflow-hidden cursor-pointer active:bg-slate-50"
+                onClick={() => openRoles(client)}
+              >
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+                  <span className="font-mono text-xs text-slate-400 shrink-0">{client.clientId}</span>
+                  <span className="font-semibold text-slate-900 truncate flex-1">{client.name}</span>
+                  <ChevronRight size={13} className="text-slate-300 shrink-0" />
+                  <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => openEdit(e, client)}><Pencil size={13} /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50"
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(client); }}><Trash2 size={13} /></Button>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Active Roles</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                      {activeRolesCount(client)} active
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Total Roles</span>
+                    <span className="text-sm text-slate-700">{client.roles.length}</span>
+                  </div>
+                  {pocs.length > 0 && (
+                    <div className="flex items-start justify-between gap-4 px-4 py-2.5">
+                      <span className="text-xs text-slate-500 shrink-0 mt-0.5">POC</span>
+                      <div className="text-right space-y-0.5">
+                        {pocs.slice(0, 2).map((p, i) => (
+                          <div key={i} className="text-xs text-slate-700">
+                            {p.name}{p.email ? <span className="text-slate-400 ml-1">({p.email})</span> : ""}
+                          </div>
+                        ))}
+                        {pocs.length > 2 && <div className="text-xs text-slate-400">+{pocs.length - 2} more</div>}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Created</span>
+                    <span className="text-xs text-slate-500">{formatDate(client.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* ── Roles for Client dialog ── */}

@@ -290,8 +290,8 @@ export default function AnalyticsPage() {
         <StatCard label="Rejected"    value={summary.rejected}   icon={XCircle}     color="bg-red-500"   />
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      {/* Table — desktop only */}
+      <div className="hidden md:block bg-white rounded-xl border border-slate-200 overflow-hidden">
         {/* Table header */}
         <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-px bg-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wide">
           <div className="bg-slate-50 px-4 py-3">Role</div>
@@ -503,6 +503,195 @@ export default function AnalyticsPage() {
               </span>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Mobile cards — hidden on md+ */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                <div className="h-4 bg-slate-100 rounded animate-pulse w-1/2" />
+                <div className="h-3 bg-slate-100 rounded animate-pulse w-3/4" />
+              </div>
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 py-12 text-center text-slate-400">
+            <BarChart3 size={32} className="mx-auto mb-2 opacity-30" />
+            <p className="text-sm">No data yet.</p>
+          </div>
+        ) : (
+          <>
+            {Object.entries(grouped).map(([roleDbId, roleRows]) => {
+              const first = roleRows[0];
+              const multiRecruiter = roleRows.length > 1;
+              const roleTotals = multiRecruiter
+                ? roleRows.reduce(
+                    (acc, r) => ({
+                      submitted:  acc.submitted  + r.submitted,
+                      interviews: acc.interviews + r.interviews,
+                      selected:   acc.selected   + r.selected,
+                      offered:    acc.offered    + r.offered,
+                      rejected:   acc.rejected   + r.rejected,
+                    }),
+                    { submitted: 0, interviews: 0, selected: 0, offered: 0, rejected: 0 }
+                  )
+                : null;
+
+              return (
+                <div key={roleDbId} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                  {/* Role header */}
+                  <div className="px-4 pt-3 pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                      <span className="text-xs font-mono text-slate-400">{first.roleId}</span>
+                      <span className={cn(
+                        "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+                        first.roleStatus === "Active"  ? "bg-green-100 text-green-700"  :
+                        first.roleStatus === "OnHold"  ? "bg-yellow-100 text-yellow-700":
+                        first.roleStatus === "Closed"  ? "bg-red-100 text-red-700"      :
+                        "bg-slate-100 text-slate-500"
+                      )}>
+                        {first.roleStatus}
+                      </span>
+                      {PRIORITY_CONFIG[first.rolePriority] && (
+                        <span className={cn(
+                          "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+                          PRIORITY_CONFIG[first.rolePriority].className
+                        )}>
+                          {PRIORITY_CONFIG[first.rolePriority].label}
+                        </span>
+                      )}
+                    </div>
+                    <Link
+                      href={`/roles/${first.roleDbId}/kanban`}
+                      className="text-sm font-semibold text-slate-900 hover:text-blue-600 leading-tight block"
+                    >
+                      {first.roleTitle}
+                    </Link>
+                    <p className="text-xs text-slate-400 mt-0.5">{first.clientName}</p>
+                  </div>
+
+                  {/* Per-recruiter stats */}
+                  <div className="divide-y divide-slate-100">
+                    {roleRows.map((row) => (
+                      <div key={`${roleDbId}-${row.recruiterId}`} className="px-4 py-3">
+                        {multiRecruiter && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-bold flex items-center justify-center shrink-0">
+                              {row.recruiterName.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-xs font-semibold text-slate-600">{row.recruiterName}</span>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Submitted</p>
+                            <p className="text-sm font-semibold text-slate-700">{row.submitted || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Interviews</p>
+                            <p className="text-sm font-semibold text-blue-600">{row.interviews || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Selected</p>
+                            <p className="text-sm font-semibold text-green-600">{row.selected || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Offered</p>
+                            <p className="text-sm font-semibold text-emerald-600">{row.offered || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Rejected</p>
+                            <p className="text-sm font-semibold text-red-500">{row.rejected || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Conversion</p>
+                            <p className="text-sm font-semibold text-slate-600">
+                              {row.submitted > 0 ? `${Math.round((row.selected / row.submitted) * 100)}%` : "—"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Multi-recruiter total */}
+                    {multiRecruiter && roleTotals && (
+                      <div className="px-4 py-3 bg-slate-50">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                          {first.roleId} total · {roleRows.length} owners
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Submitted</p>
+                            <p className="text-sm font-bold text-slate-700">{roleTotals.submitted || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Interviews</p>
+                            <p className="text-sm font-bold text-blue-600">{roleTotals.interviews || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Selected</p>
+                            <p className="text-sm font-bold text-green-600">{roleTotals.selected || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Offered</p>
+                            <p className="text-sm font-bold text-emerald-600">{roleTotals.offered || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Rejected</p>
+                            <p className="text-sm font-bold text-red-500">{roleTotals.rejected || "—"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Conversion</p>
+                            <p className="text-sm font-bold text-slate-600">
+                              {roleTotals.submitted > 0 ? `${Math.round((roleTotals.selected / roleTotals.submitted) * 100)}%` : "—"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Overall summary card */}
+            {rows.length > 0 && (
+              <div className="bg-slate-50 rounded-xl border border-slate-200 px-4 py-3">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Overall Total</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-center">
+                    <p className="text-xs text-slate-400 mb-0.5">Submitted</p>
+                    <p className="text-sm font-bold text-slate-700">{summary.submitted}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-slate-400 mb-0.5">Interviews</p>
+                    <p className="text-sm font-bold text-blue-700">{summary.interviews}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-slate-400 mb-0.5">Selected</p>
+                    <p className="text-sm font-bold text-green-700">{summary.selected}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-slate-400 mb-0.5">Offered</p>
+                    <p className="text-sm font-bold text-emerald-700">{summary.offered}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-slate-400 mb-0.5">Rejected</p>
+                    <p className="text-sm font-bold text-red-600">{summary.rejected}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-slate-400 mb-0.5">Conversion</p>
+                    <p className="text-sm font-bold text-slate-600">
+                      {summary.submitted > 0 ? `${Math.round((summary.selected / summary.submitted) * 100)}%` : "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

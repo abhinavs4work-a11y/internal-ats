@@ -14,10 +14,12 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useMobileNav } from "./MobileNavContext";
 
 const navItems = [
   { href: "/",                  label: "Dashboard",    icon: LayoutDashboard },
@@ -29,10 +31,23 @@ const navItems = [
   { href: "/bulk-upload",       label: "Bulk Upload",  icon: Upload },
 ];
 
-export function Sidebar() {
+const sidebarBg = "linear-gradient(180deg, #0E0B1E 0%, #0A0918 60%, #08080F 100%)";
+
+function SidebarContent({
+  collapsed,
+  onLinkClick,
+  showCloseButton,
+  onClose,
+  onToggleCollapse,
+}: {
+  collapsed: boolean;
+  onLinkClick?: () => void;
+  showCloseButton?: boolean;
+  onClose?: () => void;
+  onToggleCollapse?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -42,15 +57,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside
-      className={cn(
-        "relative flex flex-col h-screen shrink-0 transition-all duration-300 overflow-hidden",
-        collapsed ? "w-[60px]" : "w-[220px]"
-      )}
-      style={{
-        background: "linear-gradient(180deg, #0E0B1E 0%, #0A0918 60%, #08080F 100%)",
-      }}
-    >
+    <>
       {/* Subtle top-right glow */}
       <div
         className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full opacity-20"
@@ -59,19 +66,12 @@ export function Sidebar() {
 
       {/* Header / Logo */}
       <div className={cn(
-        "relative flex items-center border-b shrink-0 transition-all duration-300",
+        "relative flex items-center border-b shrink-0 transition-all duration-300 border-white/[0.06]",
         collapsed ? "justify-center px-0 py-4" : "justify-between px-4 py-4",
-        "border-white/[0.06]"
       )}>
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* Logo mark */}
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white font-bold text-sm"
-              style={{ background: "linear-gradient(135deg, #7C3AED, #4F46E5)" }}
-            >
-              A
-            </div>
+            <img src="/avkalan-icon.svg" alt="Avkalan" className="w-7 h-7 shrink-0" />
             <div className="min-w-0">
               <p
                 className="font-bold text-sm leading-tight truncate"
@@ -91,23 +91,34 @@ export function Sidebar() {
         )}
 
         {collapsed && (
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-            style={{ background: "linear-gradient(135deg, #7C3AED, #4F46E5)" }}
-          >
-            A
-          </div>
+          <img src="/avkalan-icon.svg" alt="Avkalan" className="w-7 h-7" />
         )}
 
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className={cn(
-            "flex items-center justify-center w-6 h-6 rounded-md transition-colors text-white/30 hover:text-white/70 hover:bg-white/8",
-            collapsed && "absolute -right-3 top-1/2 -translate-y-1/2 bg-[#1A1730] border border-white/10 w-5 h-5 rounded-full shadow-lg z-10"
-          )}
-        >
-          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={14} />}
-        </button>
+        {/* Mobile close button */}
+        {showCloseButton && (
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center w-7 h-7 rounded-md text-white/40 hover:text-white/80 hover:bg-white/8 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        )}
+
+        {/* Desktop collapse toggle */}
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className={cn(
+              "flex items-center justify-center rounded-full transition-all duration-200",
+              collapsed
+                ? "absolute -right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 z-10 text-white/70 hover:text-white border border-white/20 hover:border-white/40 shadow-md"
+                : "w-6 h-6 rounded-md text-white/40 hover:text-white/80 hover:bg-white/8"
+            )}
+            style={collapsed ? { background: "#181530" } : undefined}
+          >
+            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={14} />}
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -125,26 +136,23 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 title={collapsed ? label : undefined}
+                onClick={onLinkClick}
                 className={cn(
                   "group flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-150 relative",
                   collapsed ? "justify-center px-0 py-2.5" : "px-2.5 py-2",
-                  isActive
-                    ? "text-white"
-                    : "text-white/40 hover:text-white/80"
+                  isActive ? "text-white" : "text-white/40 hover:text-white/80"
                 )}
                 style={isActive ? {
                   background: "linear-gradient(135deg, rgba(124,58,237,0.35) 0%, rgba(79,70,229,0.25) 100%)",
                   boxShadow: "inset 0 0 0 1px rgba(124,58,237,0.2)",
                 } : undefined}
               >
-                {/* Active left bar */}
                 {isActive && !collapsed && (
                   <div
                     className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
                     style={{ background: "linear-gradient(180deg, #A78BFA, #6366F1)" }}
                   />
                 )}
-
                 <Icon
                   size={16}
                   className={cn(
@@ -152,9 +160,7 @@ export function Sidebar() {
                     isActive ? "text-violet-300" : "text-white/35 group-hover:text-white/60"
                   )}
                 />
-                {!collapsed && (
-                  <span className="truncate leading-none">{label}</span>
-                )}
+                {!collapsed && <span className="truncate">{label}</span>}
               </Link>
             );
           })}
@@ -178,6 +184,55 @@ export function Sidebar() {
           {!collapsed && <span>Sign out</span>}
         </button>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false);
+  const { open, setOpen } = useMobileNav();
+
+  return (
+    <>
+      {/* ── Mobile drawer ── */}
+      {/* Backdrop */}
+      <div
+        className={cn(
+          "fixed inset-0 bg-black/60 z-40 md:hidden transition-opacity duration-300",
+          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={() => setOpen(false)}
+      />
+
+      {/* Drawer panel */}
+      <aside
+        className={cn(
+          "fixed left-0 top-0 h-full z-50 w-[260px] flex flex-col transition-transform duration-300 md:hidden",
+          open ? "translate-x-0" : "-translate-x-full"
+        )}
+        style={{ background: sidebarBg }}
+      >
+        <SidebarContent
+          collapsed={false}
+          onLinkClick={() => setOpen(false)}
+          showCloseButton
+          onClose={() => setOpen(false)}
+        />
+      </aside>
+
+      {/* ── Desktop static sidebar ── */}
+      <aside
+        className={cn(
+          "relative hidden md:flex flex-col h-screen shrink-0 transition-all duration-300",
+          collapsed ? "w-[60px]" : "w-[220px]"
+        )}
+        style={{ background: sidebarBg }}
+      >
+        <SidebarContent
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed(!collapsed)}
+        />
+      </aside>
+    </>
   );
 }

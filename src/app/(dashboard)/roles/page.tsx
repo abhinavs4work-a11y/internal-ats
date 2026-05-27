@@ -442,8 +442,8 @@ function RolesContent() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200">
+      {/* Table — desktop */}
+      <div className="hidden md:block bg-white rounded-xl border border-slate-200">
         <Table>
           <TableHeader>
             <TableRow>
@@ -555,6 +555,96 @@ function RolesContent() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile cards — roles */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 animate-pulse space-y-3">
+              <div className="h-4 bg-slate-100 rounded w-1/3" />
+              <div className="h-3 bg-slate-100 rounded w-2/3" />
+              <div className="h-3 bg-slate-100 rounded w-1/2" />
+            </div>
+          ))
+        ) : roles.length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            <Briefcase size={32} className="mx-auto mb-2 opacity-30" />
+            <p>No roles found. Create your first role.</p>
+          </div>
+        ) : (
+          roles.map((role) => {
+            const isSelected = selectedIds.has(role.id);
+            const poc = (role as any).poc as ClientPoc | null;
+            return (
+              <div
+                key={role.id}
+                className={cn(
+                  "bg-white rounded-xl border overflow-hidden cursor-pointer active:bg-slate-50",
+                  isSelected ? "border-blue-300 bg-blue-50/30" : "border-slate-200"
+                )}
+                onClick={() => router.push(`/roles/${role.id}/kanban`)}
+              >
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" className="rounded border-slate-300 cursor-pointer"
+                      checked={isSelected} onChange={() => toggleOne(role.id)} />
+                  </div>
+                  <span className="font-mono text-xs text-slate-400 shrink-0">{role.roleId}</span>
+                  <span className="font-semibold text-slate-900 truncate flex-1">{role.title}</span>
+                  <ChevronRight size={13} className="text-slate-300 shrink-0" />
+                  <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(role)}><Pencil size={13} /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50"
+                      onClick={() => setDeleteTarget(role)}><Trash2 size={13} /></Button>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Client</span>
+                    <span className="text-sm text-slate-700">{role.client.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Status</span>
+                    <RoleStatusBadge status={role.status} />
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Priority</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${priorityColor[role.priority]}`}>
+                      {role.priority}
+                    </span>
+                  </div>
+                  {role.recruiters.length > 0 && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs text-slate-500">Owner</span>
+                      <div className="flex flex-wrap gap-1 justify-end">
+                        {role.recruiters.map((r) => (
+                          <span key={r.recruiter.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-100">
+                            {r.recruiter.name.split(" ")[0]}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {poc && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs text-slate-500">POC</span>
+                      <span className="text-sm text-slate-700">{poc.name}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Openings</span>
+                    <span className="text-sm text-slate-700">{role.openings}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Created</span>
+                    <span className="text-xs text-slate-500">{formatDate(role.createdDate)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* ── Create/Edit Sheet ── */}

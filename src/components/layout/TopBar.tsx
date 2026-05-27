@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Menu } from "lucide-react";
+import { useMobileNav } from "./MobileNavContext";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -12,6 +13,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 export function TopBar() {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const { setOpen: setMobileNavOpen } = useMobileNav();
   const debouncedQuery = useDebounce(query, 300);
 
   const { data } = useQuery<SearchResult>({
@@ -29,6 +31,15 @@ export function TopBar() {
 
   return (
     <header className="h-14 border-b border-slate-200/70 bg-white/80 backdrop-blur-md flex items-center px-5 gap-4 shrink-0" style={{ boxShadow: "0 1px 0 rgba(12,10,26,0.05), 0 2px 8px rgba(12,10,26,0.03)" }}>
+      {/* Hamburger — mobile only */}
+      <button
+        className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+        onClick={() => setMobileNavOpen(true)}
+        aria-label="Open menu"
+      >
+        <Menu size={20} />
+      </button>
+
       <div className="relative flex-1 max-w-lg">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <Input

@@ -319,7 +319,7 @@ export default function CandidatesPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200">
+      <div className="hidden md:block bg-white rounded-xl border border-slate-200">
         <Table>
           <TableHeader>
             <TableRow>
@@ -416,6 +416,92 @@ export default function CandidatesPage() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile cards — candidates */}
+      <div className="md:hidden space-y-3">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 animate-pulse space-y-3">
+              <div className="h-4 bg-slate-100 rounded w-1/3" />
+              <div className="h-3 bg-slate-100 rounded w-2/3" />
+              <div className="h-3 bg-slate-100 rounded w-1/2" />
+            </div>
+          ))
+        ) : candidates.length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            <Users size={32} className="mx-auto mb-2 opacity-30" />
+            <p>No candidates found. Add your first candidate.</p>
+          </div>
+        ) : (
+          candidates.map((c) => {
+            const isSelected = selectedIds.has(c.id);
+            return (
+              <div
+                key={c.id}
+                className={cn(
+                  "bg-white rounded-xl border overflow-hidden cursor-pointer active:bg-slate-50",
+                  isSelected ? "border-blue-300 bg-blue-50/30" : "border-slate-200"
+                )}
+                onClick={() => openDetail(c)}
+              >
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" className="rounded border-slate-300 cursor-pointer"
+                      checked={isSelected} onChange={() => toggleOne(c.id)} />
+                  </div>
+                  <span className="font-mono text-xs text-slate-400 shrink-0">{c.candidateId}</span>
+                  <span className="font-semibold text-slate-900 truncate flex-1">{c.fullName}</span>
+                  <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}><Pencil size={13} /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-50"
+                      onClick={() => setDeleteTarget(c)}><Trash2 size={13} /></Button>
+                  </div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Email</span>
+                    <span className="text-xs text-slate-600 truncate max-w-[200px]">{c.email}</span>
+                  </div>
+                  {Number(c.expectedCtc) > 0 && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs text-slate-500">Expected CTC</span>
+                      <span className="text-sm font-medium text-blue-700">{formatCurrency(Number(c.expectedCtc))}</span>
+                    </div>
+                  )}
+                  {Number((c as any).dailyRate) > 0 && (
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs text-slate-500">Rate / Day</span>
+                      <span className="text-sm font-medium text-emerald-700">{formatCurrency(Number((c as any).dailyRate))}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Source</span>
+                    <span className="text-xs text-slate-600">{SOURCE_LABELS[c.source as CandidateSource] ?? c.source}</span>
+                  </div>
+                  {c.mappings.length > 0 && (
+                    <div className="px-4 py-2.5 space-y-2">
+                      <span className="text-xs text-slate-500 block">Active Roles</span>
+                      {c.mappings.map((m) => (
+                        <div key={m.id} className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-800 truncate">{(m as any).role?.title ?? ""}</p>
+                            <p className="text-[10px] font-mono text-slate-400">{(m as any).role?.roleId ?? ""}</p>
+                          </div>
+                          <MappingStatusBadge status={m.status} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-xs text-slate-500">Added</span>
+                    <span className="text-xs text-slate-500">{formatDate(c.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* ── Create/Edit Sheet ── */}
