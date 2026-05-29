@@ -15,6 +15,7 @@ const MAPPING_STATUS_CONFIG: Record<MappingStatus, {
   Offered:           { label: "Offered",       bg: "bg-emerald-50",       text: "text-emerald-700", dot: "bg-emerald-400" },
   Accepted:          { label: "Accepted",      bg: "bg-teal-50",          text: "text-teal-700",    dot: "bg-teal-400" },
   Onboarding:        { label: "Onboarding",    bg: "bg-cyan-50",          text: "text-cyan-700",    dot: "bg-cyan-400" },
+  Onboarded:         { label: "Onboarded",     bg: "bg-sky-50",           text: "text-sky-700",     dot: "bg-sky-500" },
   Rejected:          { label: "Rejected",      bg: "bg-red-50",           text: "text-red-600",     dot: "bg-red-400" },
   CandidateWithdrawn:{ label: "Withdrawn",     bg: "bg-orange-50",        text: "text-orange-600",  dot: "bg-orange-400" },
 };

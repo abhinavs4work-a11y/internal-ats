@@ -10,6 +10,7 @@ import {
   useSensors,
   DragOverlay,
   closestCorners,
+  useDroppable,
 } from "@dnd-kit/core";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { KanbanColumn, MappingWithDetails } from "@/types";
@@ -18,20 +19,49 @@ import { KanbanColumnComponent } from "./KanbanColumn";
 import { CandidateCard } from "./CandidateCard";
 import { RejectionModal } from "./RejectionModal";
 import { CandidateDetailSheet } from "@/components/candidates/CandidateDetailSheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const DELETE_ZONE_ID = "DELETE_ZONE";
+
+function DeleteZone({ visible }: { visible: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: DELETE_ZONE_ID });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-6 py-3 rounded-2xl border-2 transition-all duration-200 select-none cursor-default",
+        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6 pointer-events-none",
+        isOver
+          ? "bg-red-500 border-red-500 text-white shadow-2xl shadow-red-500/40 scale-105"
+          : "bg-white border-red-300 text-red-500 shadow-lg"
+      )}
+    >
+      <Trash2 size={15} />
+      <span className="text-sm font-semibold whitespace-nowrap">Remove from role</span>
+    </div>
+  );
+}
 
 interface Props {
   roleId: string;
 }
 
 export function KanbanBoard({ roleId }: Props) {
-  const [activeCard, setActiveCard] = useState<MappingWithDetails | null>(null);
+  const [activeCard, setActiveCard]   = useState<MappingWithDetails | null>(null);
   const [rejectionState, setRejectionState] = useState<{
     mappingId: string;
     newStatus: MappingStatus;
   } | null>(null);
-  const [localColumns, setLocalColumns] = useState<KanbanColumn[] | null>(null);
+  const [deleteConfirmState, setDeleteConfirmState] = useState<{
+    mappingId: string;
+    candidateName: string;
+  } | null>(null);
+  const [localColumns, setLocalColumns]   = useState<KanbanColumn[] | null>(null);
   const [detailCandidateId, setDetailCandidateId] = useState<string | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailOpen, setDetailOpen]       = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -77,13 +107,27 @@ export function KanbanBoard({ roleId }: Props) {
       queryClient.invalidateQueries({ queryKey: ["candidates"] });
     },
     onError: () => {
-      // Rollback optimistic update
+      setLocalColumns(serverColumns ?? null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (mappingId: string) => {
+      const res = await fetch(`/api/mappings/${mappingId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove mapping");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kanban", roleId] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+    },
+    onError: () => {
       setLocalColumns(serverColumns ?? null);
     },
   });
 
   function moveCard(mappingId: string, newStatus: MappingStatus) {
-    // Optimistic update
     setLocalColumns((prev) => {
       if (!prev) return prev;
       let card: MappingWithDetails | undefined;
@@ -102,6 +146,16 @@ export function KanbanBoard({ roleId }: Props) {
     });
   }
 
+  function removeCard(mappingId: string) {
+    setLocalColumns((prev) => {
+      if (!prev) return prev;
+      return prev.map((col) => ({
+        ...col,
+        cards: col.cards.filter((c) => c.id !== mappingId),
+      }));
+    });
+  }
+
   function handleDragStart(event: DragStartEvent) {
     const card = columns
       .flatMap((c) => c.cards)
@@ -117,15 +171,21 @@ export function KanbanBoard({ roleId }: Props) {
 
     const mappingId = active.id as string;
 
-    // over.id may be a column status (dropped on empty column area)
-    // OR a card id (dropped on top of another card) — resolve column either way
+    // Dropped on the delete zone → ask for confirmation
+    if (over.id === DELETE_ZONE_ID) {
+      const card = columns.flatMap((c) => c.cards).find((c) => c.id === mappingId);
+      if (card) {
+        setDeleteConfirmState({ mappingId, candidateName: card.candidate.fullName });
+      }
+      return;
+    }
+
     const columnStatuses = columns.map((c) => c.status) as string[];
     let newStatus: MappingStatus;
 
     if (columnStatuses.includes(over.id as string)) {
       newStatus = over.id as MappingStatus;
     } else {
-      // over.id is a card id — find which column owns that card
       const targetCol = columns.find((c) => c.cards.some((card) => card.id === over.id));
       if (!targetCol) return;
       newStatus = targetCol.status as MappingStatus;
@@ -147,13 +207,16 @@ export function KanbanBoard({ roleId }: Props) {
     if (!rejectionState) return;
     const { mappingId, newStatus } = rejectionState;
     moveCard(mappingId, newStatus);
-    statusMutation.mutate({
-      mappingId,
-      newStatus,
-      rejectionReason: reason,
-      rejectionCustomReason: customReason,
-    });
+    statusMutation.mutate({ mappingId, newStatus, rejectionReason: reason, rejectionCustomReason: customReason });
     setRejectionState(null);
+  }
+
+  function handleDeleteConfirm() {
+    if (!deleteConfirmState) return;
+    const { mappingId } = deleteConfirmState;
+    removeCard(mappingId);
+    deleteMutation.mutate(mappingId);
+    setDeleteConfirmState(null);
   }
 
   if (isLoading) {
@@ -183,11 +246,16 @@ export function KanbanBoard({ roleId }: Props) {
             />
           ))}
         </div>
+
+        {/* Delete zone — appears while dragging */}
+        <DeleteZone visible={activeCard !== null} />
+
         <DragOverlay>
           {activeCard && <CandidateCard mapping={activeCard} isDragging />}
         </DragOverlay>
       </DndContext>
 
+      {/* Rejection modal */}
       <RejectionModal
         open={!!rejectionState}
         onConfirm={handleRejectionConfirm}
@@ -196,6 +264,32 @@ export function KanbanBoard({ roleId }: Props) {
           setLocalColumns(serverColumns ?? null);
         }}
       />
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteConfirmState} onOpenChange={(o) => !o && setDeleteConfirmState(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remove from role?</DialogTitle>
+            <DialogDescription>
+              This will unmap <strong>{deleteConfirmState?.candidateName}</strong> from this role.
+              All pipeline history for this mapping will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirmState(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deleteMutation.isPending}
+              onClick={handleDeleteConfirm}
+            >
+              {deleteMutation.isPending ? "Removing…" : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CandidateDetailSheet
         candidateId={detailCandidateId}

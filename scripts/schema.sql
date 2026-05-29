@@ -9,7 +9,7 @@ CREATE TYPE "RoleStatus" AS ENUM ('Active', 'OnHold', 'Inactive', 'Closed');
 -- CreateEnum
 CREATE TYPE "CandidateSource" AS ENUM ('InternalResdex', 'InternalLinkedIn', 'Reference', 'Agency');
 -- CreateEnum
-CREATE TYPE "MappingStatus" AS ENUM ('Submitted', 'R1', 'R2', 'ClientRound', 'Selected', 'Offered', 'Accepted', 'Onboarding', 'Rejected', 'CandidateWithdrawn');
+CREATE TYPE "MappingStatus" AS ENUM ('Submitted', 'R1', 'R2', 'ClientRound', 'Selected', 'Offered', 'Accepted', 'Onboarding', 'Onboarded', 'Rejected', 'CandidateWithdrawn');
 -- CreateEnum
 CREATE TYPE "RejectionReason" AS ENUM ('BudgetMismatch', 'PoorCommunication', 'TechnicalRejection', 'CandidateNotInterested', 'OfferDeclined', 'PositionClosed', 'Other');
 -- CreateEnum

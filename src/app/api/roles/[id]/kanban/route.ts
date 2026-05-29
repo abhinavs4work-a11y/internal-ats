@@ -12,6 +12,7 @@ const DEFAULT_STAGES: MappingStatus[] = [
   MappingStatus.Offered,
   MappingStatus.Accepted,
   MappingStatus.Onboarding,
+  MappingStatus.Onboarded,
   MappingStatus.Rejected,
   MappingStatus.CandidateWithdrawn,
 ];
@@ -25,6 +26,7 @@ export const STAGE_LABELS: Record<MappingStatus, string> = {
   Offered: "Offered",
   Accepted: "Accepted",
   Onboarding: "Onboarding",
+  Onboarded: "Onboarded",
   Rejected: "Rejected",
   CandidateWithdrawn: "Candidate Withdrawn",
 };

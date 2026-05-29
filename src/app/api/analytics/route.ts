@@ -10,19 +10,15 @@ export async function GET(request: NextRequest) {
   const clientId    = searchParams.get("clientId")    ?? "";
   const recruiterId = searchParams.get("recruiterId") ?? "";
   const priority    = searchParams.get("priority")    ?? "";
+  const poc         = searchParams.get("poc")         ?? "";
 
-  // Start from Role so zero-candidate roles still appear
+  // Filter by role owner (RoleRecruiter), not by mapping submitter
   const roles = await prisma.role.findMany({
     where: {
-      status: { not: "Closed" },
-      ...(clientId   ? { clientId }                : {}),
-      ...(priority   ? { priority: priority as any } : {}),
-      ...(recruiterId ? {
-        OR: [
-          { recruiters: { some: { recruiterId } } },
-          { mappings:   { some: { recruiterId } } },
-        ],
-      } : {}),
+      ...(clientId    ? { clientId }                                        : {}),
+      ...(priority    ? { priority: priority as any }                      : {}),
+      ...(poc         ? { poc: { path: ["name"], equals: poc } }           : {}),
+      ...(recruiterId ? { recruiters: { some: { recruiterId } } }          : {}),
     },
     select: {
       id:       true,
@@ -30,21 +26,22 @@ export async function GET(request: NextRequest) {
       title:    true,
       status:   true,
       priority: true,
+      poc:      true,
       client:   { select: { id: true, name: true } },
+      // Role's assigned owners — shown in the Owner column
       recruiters: {
         select: { recruiter: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
       },
+      // All mappings for this role regardless of who submitted them
       mappings: {
-        ...(recruiterId ? { where: { recruiterId } } : {}),
-        select: {
-          status:      true,
-          recruiterId: true,
-          recruiter:   { select: { id: true, name: true } },
-        },
+        select: { status: true },
       },
     },
     orderBy: [{ client: { name: "asc" } }, { roleId: "asc" }],
   });
+
+  type Owner = { id: string; name: string };
 
   type Row = {
     roleDbId:      string;
@@ -54,19 +51,45 @@ export async function GET(request: NextRequest) {
     rolePriority:  string;
     clientId:      string;
     clientName:    string;
-    recruiterId:   string;
-    recruiterName: string;
+    pocName:       string;
+    owners:        Owner[];   // role's assigned recruiters
+    recruiterId:   string;    // kept for breakdown tooltip (empty = all)
+    recruiterName: string;    // display string
     submitted:     number;
     interviews:    number;
     selected:      number;
     offered:       number;
     rejected:      number;
     onboarding:    number;
+    onboarded:     number;
     withdrawn:     number;
   };
 
-  function zeroRow(role: typeof roles[0], recruiterId: string, recruiterName: string): Row {
-    return {
+  const allRows: Row[] = [];
+
+  for (const role of roles) {
+    const pocRaw = role.poc as { name?: string } | null;
+    const owners: Owner[] = role.recruiters.map((rr) => rr.recruiter);
+
+    // Aggregate ALL mappings for this role (regardless of who submitted)
+    const stats = {
+      submitted: 0, interviews: 0, selected: 0, offered: 0,
+      rejected: 0, onboarding: 0, onboarded: 0, withdrawn: 0,
+    };
+
+    for (const m of role.mappings) {
+      const s = m.status;
+      stats.submitted++;
+      if (s === "R1" || s === "R2" || s === "ClientRound") stats.interviews++;
+      if (s === "Selected")                                stats.selected++;
+      if (s === "Offered"  || s === "Accepted")            stats.offered++;
+      if (s === "Rejected")                                stats.rejected++;
+      if (s === "Onboarding")                              stats.onboarding++;
+      if (s === "Onboarded")                               stats.onboarded++;
+      if (s === "CandidateWithdrawn")                      stats.withdrawn++;
+    }
+
+    allRows.push({
       roleDbId:      role.id,
       roleId:        role.roleId,
       roleTitle:     role.title,
@@ -74,59 +97,19 @@ export async function GET(request: NextRequest) {
       rolePriority:  role.priority,
       clientId:      role.client.id,
       clientName:    role.client.name,
-      recruiterId,
-      recruiterName,
-      submitted:  0,
-      interviews: 0,
-      selected:   0,
-      offered:    0,
-      rejected:   0,
-      onboarding: 0,
-      withdrawn:  0,
-    };
-  }
-
-  const allRows: Row[] = [];
-
-  for (const role of roles) {
-    // Aggregate existing mappings by recruiterId
-    const mappingMap = new Map<string, Row>();
-
-    for (const m of role.mappings) {
-      if (!mappingMap.has(m.recruiterId)) {
-        mappingMap.set(m.recruiterId, zeroRow(role, m.recruiter.id, m.recruiter.name));
-      }
-      const row = mappingMap.get(m.recruiterId)!;
-      const s = m.status;
-      row.submitted++;
-      if (s === "R1" || s === "R2" || s === "ClientRound") row.interviews++;
-      if (s === "Selected")                                row.selected++;
-      if (s === "Offered"  || s === "Accepted")            row.offered++;
-      if (s === "Rejected")                                row.rejected++;
-      if (s === "Onboarding")                              row.onboarding++;
-      if (s === "CandidateWithdrawn")                      row.withdrawn++;
-    }
-
-    if (mappingMap.size > 0) {
-      // Role has submissions — show per-recruiter rows as before
-      allRows.push(...Array.from(mappingMap.values()));
-    } else {
-      // No submissions yet — show one zero row per assigned recruiter
-      if (role.recruiters.length > 0) {
-        for (const rr of role.recruiters) {
-          allRows.push(zeroRow(role, rr.recruiter.id, rr.recruiter.name));
-        }
-      } else {
-        // No recruiters assigned either — still surface the role
-        allRows.push(zeroRow(role, "", "Unassigned"));
-      }
-    }
+      pocName:       pocRaw?.name ?? "",
+      owners,
+      recruiterId:   "",   // all recruiters — breakdown API handles empty = no filter
+      recruiterName: owners.length > 0
+        ? owners.map((o) => o.name.split(" ")[0]).join(", ")
+        : "Unassigned",
+      ...stats,
+    });
   }
 
   allRows.sort((a, b) =>
     a.clientName.localeCompare(b.clientName) ||
-    a.roleId.localeCompare(b.roleId) ||
-    a.recruiterName.localeCompare(b.recruiterName)
+    a.roleId.localeCompare(b.roleId)
   );
 
   const summary = allRows.reduce(
@@ -136,8 +119,9 @@ export async function GET(request: NextRequest) {
       selected:   acc.selected   + r.selected,
       offered:    acc.offered    + r.offered,
       rejected:   acc.rejected   + r.rejected,
+      onboarded:  acc.onboarded  + r.onboarded,
     }),
-    { submitted: 0, interviews: 0, selected: 0, offered: 0, rejected: 0 }
+    { submitted: 0, interviews: 0, selected: 0, offered: 0, rejected: 0, onboarded: 0 }
   );
 
   const clients = await prisma.client.findMany({
@@ -149,5 +133,16 @@ export async function GET(request: NextRequest) {
     orderBy: { name: "asc" },
   });
 
-  return NextResponse.json({ rows: allRows, summary, clients, recruiters });
+  const allRolesForPoc = await prisma.role.findMany({
+    select: { poc: true },
+  });
+  const pocs = [
+    ...new Set(
+      allRolesForPoc
+        .map((r) => (r.poc as { name?: string } | null)?.name)
+        .filter((n): n is string => !!n)
+    ),
+  ].sort();
+
+  return NextResponse.json({ rows: allRows, summary, clients, recruiters, pocs });
 }

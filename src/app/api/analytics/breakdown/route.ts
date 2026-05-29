@@ -7,11 +7,12 @@ const CATEGORY_STATUSES: Record<string, MappingStatus[]> = {
   submitted:  [
     "Submitted", "R1", "R2", "ClientRound",
     "Selected", "Offered", "Accepted",
-    "Onboarding", "Rejected", "CandidateWithdrawn",
+    "Onboarding", "Onboarded", "Rejected", "CandidateWithdrawn",
   ],
   interviews: ["R1", "R2", "ClientRound"],
   selected:   ["Selected"],
   offered:    ["Offered", "Accepted"],
+  onboarded:  ["Onboarding", "Onboarded"],
   rejected:   ["Rejected"],
 };
 
@@ -24,6 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
   Offered:           "Offered",
   Accepted:          "Accepted",
   Onboarding:        "Onboarding",
+  Onboarded:         "Onboarded",
   Rejected:          "Rejected",
   CandidateWithdrawn:"Withdrawn",
 };
@@ -37,8 +39,8 @@ export async function GET(request: NextRequest) {
   const recruiterId = searchParams.get("recruiterId");
   const category    = searchParams.get("category") ?? "submitted";
 
-  if (!roleId || !recruiterId) {
-    return NextResponse.json({ error: "roleId and recruiterId are required" }, { status: 400 });
+  if (!roleId) {
+    return NextResponse.json({ error: "roleId is required" }, { status: 400 });
   }
 
   const statuses = CATEGORY_STATUSES[category];
@@ -49,7 +51,7 @@ export async function GET(request: NextRequest) {
   const mappings = await prisma.candidateRoleMapping.findMany({
     where: {
       roleId,
-      recruiterId,
+      ...(recruiterId ? { recruiterId } : {}),
       status: { in: statuses },
     },
     select: {

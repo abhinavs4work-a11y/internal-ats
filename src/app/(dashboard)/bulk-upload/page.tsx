@@ -27,7 +27,7 @@ const CANDIDATE_COLS: ColDef[] = [
   { name: "source",        required: false, description: "Candidate source",                       values: "InternalResdex · InternalLinkedIn · Reference · Agency" },
   { name: "recruiter",     required: false, description: "Owner name (partial match ok)",          example: "John" },
   { name: "roleId",        required: false, description: "Role ID to map this candidate to",       example: "TCS-001" },
-  { name: "status",        required: false, description: "Initial pipeline status (default: Submitted)", values: "Submitted · R1 · R2 · ClientRound · Selected · Offered · Accepted · Onboarding · Rejected · CandidateWithdrawn" },
+  { name: "status",        required: false, description: "Initial pipeline status (default: Submitted)", values: "Submitted · R1 · R2 · ClientRound · Selected · Offered · Accepted · Onboarding · Onboarded · Rejected · CandidateWithdrawn" },
   { name: "submissionDate",required: false, description: "Date of submission",                    example: "2025-01-15 (YYYY-MM-DD)" },
   { name: "notes",         required: false, description: "Any additional notes",                   example: "Strong Java background" },
 ];

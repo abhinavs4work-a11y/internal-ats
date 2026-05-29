@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart3, Users, CheckCircle2, XCircle, Briefcase, Award } from "lucide-react";
+import { BarChart3, Users, CheckCircle2, XCircle, Briefcase, Award, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -15,6 +15,8 @@ type AnalyticsRow = {
   rolePriority:  string;
   clientId:      string;
   clientName:    string;
+  pocName:       string;
+  owners:        { id: string; name: string }[];
   recruiterId:   string;
   recruiterName: string;
   submitted:     number;
@@ -23,14 +25,16 @@ type AnalyticsRow = {
   offered:       number;
   rejected:      number;
   onboarding:    number;
+  onboarded:     number;
   withdrawn:     number;
 };
 
 type AnalyticsData = {
-  rows:      AnalyticsRow[];
-  summary:   { submitted: number; interviews: number; selected: number; offered: number; rejected: number };
-  clients:   { id: string; name: string }[];
-  recruiters:{ id: string; name: string }[];
+  rows:       AnalyticsRow[];
+  summary:    { submitted: number; interviews: number; selected: number; offered: number; rejected: number; onboarded: number };
+  clients:    { id: string; name: string }[];
+  recruiters: { id: string; name: string }[];
+  pocs:       string[];
 };
 
 function StatCard({ label, value, icon: Icon, color }: {
@@ -83,7 +87,7 @@ function StatCell({
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchCandidates = useCallback(async () => {
-    if (candidates !== null) return; // already fetched
+    if (candidates !== null) return;
     setLoading(true);
     try {
       const res = await fetch(
@@ -118,7 +122,6 @@ function StatCell({
     setOpen(false);
   }
 
-  // Close on scroll
   useEffect(() => {
     if (!open) return;
     const close = () => setOpen(false);
@@ -154,7 +157,6 @@ function StatCell({
         )}
       </div>
 
-      {/* Portal tooltip */}
       {open && (
         <div
           className="fixed z-50 pointer-events-none"
@@ -183,7 +185,6 @@ function StatCell({
               </>
             )}
           </div>
-          {/* Arrow */}
           <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-1.5 overflow-hidden">
             <div className="w-2.5 h-2.5 bg-slate-900 rotate-45 translate-y-1 mx-auto" />
           </div>
@@ -194,23 +195,28 @@ function StatCell({
 }
 
 const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
-  High:   { label: "High",   className: "bg-red-100 text-red-700"    },
+  High:   { label: "High",   className: "bg-red-100 text-red-700"       },
   Medium: { label: "Medium", className: "bg-yellow-100 text-yellow-700" },
-  Low:    { label: "Low",    className: "bg-slate-100 text-slate-500" },
+  Low:    { label: "Low",    className: "bg-slate-100 text-slate-500"   },
 };
+
+// Shared grid template for all rows
+const GRID = "grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr]";
 
 export default function AnalyticsPage() {
   const [clientId,    setClientId]    = useState("all");
   const [recruiterId, setRecruiterId] = useState("all");
   const [priority,    setPriority]    = useState("all");
+  const [poc,         setPoc]         = useState("all");
 
   const { data, isLoading } = useQuery<AnalyticsData>({
-    queryKey: ["analytics", clientId, recruiterId, priority],
+    queryKey: ["analytics", clientId, recruiterId, priority, poc],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (clientId    !== "all") params.set("clientId",    clientId);
       if (recruiterId !== "all") params.set("recruiterId", recruiterId);
       if (priority    !== "all") params.set("priority",    priority);
+      if (poc         !== "all") params.set("poc",         poc);
       const res = await fetch(`/api/analytics?${params}`);
       return res.json();
     },
@@ -219,12 +225,12 @@ export default function AnalyticsPage() {
     refetchOnWindowFocus: true,
   });
 
-  const rows      = data?.rows      ?? [];
-  const summary   = data?.summary   ?? { submitted: 0, interviews: 0, selected: 0, offered: 0, rejected: 0 };
-  const clients   = data?.clients   ?? [];
-  const recruiters= data?.recruiters ?? [];
+  const rows       = data?.rows       ?? [];
+  const summary    = data?.summary    ?? { submitted: 0, interviews: 0, selected: 0, offered: 0, rejected: 0, onboarded: 0 };
+  const clients    = data?.clients    ?? [];
+  const recruiters = data?.recruiters ?? [];
+  const pocs       = data?.pocs       ?? [];
 
-  // Group rows by role for visual grouping
   const grouped = rows.reduce<Record<string, AnalyticsRow[]>>((acc, row) => {
     const key = row.roleDbId;
     if (!acc[key]) acc[key] = [];
@@ -235,43 +241,31 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
-          <p className="text-slate-500 text-sm mt-1">Recruitment pipeline overview by role &amp; owner</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
+        <p className="text-slate-500 text-sm mt-1">Recruitment pipeline overview by role &amp; owner</p>
       </div>
 
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <Select value={clientId} onValueChange={setClientId}>
-          <SelectTrigger className="w-48 bg-white">
-            <SelectValue placeholder="All Clients" />
-          </SelectTrigger>
+          <SelectTrigger className="w-44 bg-white"><SelectValue placeholder="All Clients" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Clients</SelectItem>
-            {clients.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-            ))}
+            {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
 
         <Select value={recruiterId} onValueChange={setRecruiterId}>
-          <SelectTrigger className="w-48 bg-white">
-            <SelectValue placeholder="All Owners" />
-          </SelectTrigger>
+          <SelectTrigger className="w-44 bg-white"><SelectValue placeholder="All Owners" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Owners</SelectItem>
-            {recruiters.map((r) => (
-              <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-            ))}
+            {recruiters.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
           </SelectContent>
         </Select>
 
         <Select value={priority} onValueChange={setPriority}>
-          <SelectTrigger className="w-44 bg-white">
-            <SelectValue placeholder="All Priorities" />
-          </SelectTrigger>
+          <SelectTrigger className="w-40 bg-white"><SelectValue placeholder="All Priorities" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Priorities</SelectItem>
             <SelectItem value="High">High</SelectItem>
@@ -279,27 +273,37 @@ export default function AnalyticsPage() {
             <SelectItem value="Low">Low</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select value={poc} onValueChange={setPoc}>
+          <SelectTrigger className="w-44 bg-white"><SelectValue placeholder="All POCs" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All POCs</SelectItem>
+            {pocs.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <StatCard label="Submitted"   value={summary.submitted}  icon={Users}       color="bg-slate-500" />
-        <StatCard label="Interviews"  value={summary.interviews} icon={Briefcase}   color="bg-blue-500"  />
-        <StatCard label="Selected"    value={summary.selected}   icon={CheckCircle2}color="bg-green-500" />
-        <StatCard label="Offered"     value={summary.offered}    icon={Award}       color="bg-emerald-500" />
-        <StatCard label="Rejected"    value={summary.rejected}   icon={XCircle}     color="bg-red-500"   />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <StatCard label="Submitted"  value={summary.submitted}  icon={Users}       color="bg-slate-500"   />
+        <StatCard label="Interviews" value={summary.interviews} icon={Briefcase}   color="bg-blue-500"    />
+        <StatCard label="Selected"   value={summary.selected}   icon={CheckCircle2}color="bg-green-500"   />
+        <StatCard label="Offered"    value={summary.offered}    icon={Award}       color="bg-emerald-500" />
+        <StatCard label="Onboarded"  value={summary.onboarded}  icon={UserCheck}   color="bg-sky-500"     />
+        <StatCard label="Rejected"   value={summary.rejected}   icon={XCircle}     color="bg-red-500"     />
       </div>
 
       {/* Table — desktop only */}
       <div className="hidden md:block bg-white rounded-xl border border-slate-200 overflow-hidden">
-        {/* Table header */}
-        <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-px bg-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        {/* Header */}
+        <div className={cn("grid gap-px bg-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wide", GRID)}>
           <div className="bg-slate-50 px-4 py-3">Role</div>
           <div className="bg-slate-50 px-4 py-3">Owner</div>
           <div className="bg-slate-50 px-3 py-3 text-center">Submitted</div>
           <div className="bg-slate-50 px-3 py-3 text-center">Interviews</div>
           <div className="bg-slate-50 px-3 py-3 text-center">Selected</div>
           <div className="bg-slate-50 px-3 py-3 text-center">Offered</div>
+          <div className="bg-slate-50 px-3 py-3 text-center">Onboarded</div>
           <div className="bg-slate-50 px-3 py-3 text-center">Rejected</div>
           <div className="bg-slate-50 px-3 py-3 text-center">Conversion</div>
         </div>
@@ -307,8 +311,8 @@ export default function AnalyticsPage() {
         {isLoading ? (
           <div className="space-y-px bg-slate-100">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-px bg-slate-100">
-                {Array.from({ length: 8 }).map((_, j) => (
+              <div key={i} className={cn("grid gap-px bg-slate-100", GRID)}>
+                {Array.from({ length: 9 }).map((_, j) => (
                   <div key={j} className="bg-white px-4 py-3.5">
                     <div className="h-3.5 bg-slate-100 rounded animate-pulse" />
                   </div>
@@ -327,7 +331,6 @@ export default function AnalyticsPage() {
               const first = roleRows[0];
               const multiRecruiter = roleRows.length > 1;
 
-              // Role-level totals (only needed for multi-recruiter summary row)
               const roleTotals = multiRecruiter
                 ? roleRows.reduce(
                     (acc, r) => ({
@@ -335,21 +338,18 @@ export default function AnalyticsPage() {
                       interviews: acc.interviews + r.interviews,
                       selected:   acc.selected   + r.selected,
                       offered:    acc.offered    + r.offered,
+                      onboarded:  acc.onboarded  + r.onboarded,
                       rejected:   acc.rejected   + r.rejected,
                     }),
-                    { submitted: 0, interviews: 0, selected: 0, offered: 0, rejected: 0 }
+                    { submitted: 0, interviews: 0, selected: 0, offered: 0, onboarded: 0, rejected: 0 }
                   )
                 : null;
 
               return (
                 <div key={roleDbId} className="divide-y divide-slate-50">
-                  {/* One row per recruiter — role info + recruiter + stats on the same line */}
                   {roleRows.map((row, idx) => (
-                    <div
-                      key={`${roleDbId}-${row.recruiterId}`}
-                      className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-px bg-slate-100"
-                    >
-                      {/* Role info — full detail on first row, compact on subsequent rows */}
+                    <div key={`${roleDbId}-${row.recruiterId}`} className={cn("grid gap-px bg-slate-100", GRID)}>
+                      {/* Role info */}
                       <div className="bg-white px-4 py-3 flex items-center">
                         {idx === 0 ? (
                           <div>
@@ -357,9 +357,9 @@ export default function AnalyticsPage() {
                               <span className="text-xs font-mono text-slate-400">{first.roleId}</span>
                               <span className={cn(
                                 "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
-                                first.roleStatus === "Active"  ? "bg-green-100 text-green-700"  :
-                                first.roleStatus === "OnHold"  ? "bg-yellow-100 text-yellow-700":
-                                first.roleStatus === "Closed"  ? "bg-red-100 text-red-700"      :
+                                first.roleStatus === "Active"  ? "bg-green-100 text-green-700"   :
+                                first.roleStatus === "OnHold"  ? "bg-yellow-100 text-yellow-700" :
+                                first.roleStatus === "Closed"  ? "bg-red-100 text-red-700"       :
                                 "bg-slate-100 text-slate-500"
                               )}>
                                 {first.roleStatus}
@@ -379,10 +379,16 @@ export default function AnalyticsPage() {
                             >
                               {first.roleTitle}
                             </Link>
-                            <p className="text-xs text-slate-400">{first.clientName}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <p className="text-xs text-slate-400">{first.clientName}</p>
+                              {first.pocName && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600">
+                                  {first.pocName.split(" ")[0]}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         ) : (
-                          // Subsequent recruiter rows — show a subtle continuation indicator
                           <div className="flex items-center gap-2 pl-2">
                             <div className="w-px h-4 bg-slate-200" />
                             <span className="text-xs text-slate-300 font-mono truncate">{first.roleId}</span>
@@ -390,12 +396,31 @@ export default function AnalyticsPage() {
                         )}
                       </div>
 
-                      {/* Owner name */}
+                      {/* Owner */}
                       <div className="bg-white px-4 py-3 flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center shrink-0">
-                          {row.recruiterName.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-sm text-slate-700 font-medium truncate">{row.recruiterName.split(" ")[0]}</span>
+                        {row.owners.length === 0 ? (
+                          <span className="text-sm text-slate-400 italic">Unassigned</span>
+                        ) : (
+                          <>
+                            <div className="flex -space-x-1.5 shrink-0">
+                              {row.owners.slice(0, 3).map((o) => (
+                                <div
+                                  key={o.id}
+                                  title={o.name}
+                                  className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center ring-2 ring-white"
+                                >
+                                  {o.name.charAt(0).toUpperCase()}
+                                </div>
+                              ))}
+                            </div>
+                            <span className="text-sm text-slate-700 font-medium truncate">
+                              {row.owners.length === 1
+                                ? row.owners[0].name.split(" ")[0]
+                                : row.owners.slice(0, 2).map((o) => o.name.split(" ")[0]).join(", ")
+                                  + (row.owners.length > 2 ? ` +${row.owners.length - 2}` : "")}
+                            </span>
+                          </>
+                        )}
                       </div>
 
                       {/* Stats */}
@@ -410,6 +435,9 @@ export default function AnalyticsPage() {
                       </div>
                       <div className="bg-white px-3 py-3 text-center flex items-center justify-center">
                         <StatCell value={row.offered} highlight="text-emerald-600" showPct submitted={row.submitted} roleDbId={row.roleDbId} recruiterId={row.recruiterId} category="offered" />
+                      </div>
+                      <div className="bg-white px-3 py-3 text-center flex items-center justify-center">
+                        <StatCell value={row.onboarded} highlight="text-sky-600" showPct submitted={row.submitted} roleDbId={row.roleDbId} recruiterId={row.recruiterId} category="onboarded" />
                       </div>
                       <div className="bg-white px-3 py-3 text-center flex items-center justify-center">
                         <StatCell value={row.rejected} highlight="text-red-500" showPct submitted={row.submitted} roleDbId={row.roleDbId} recruiterId={row.recruiterId} category="rejected" />
@@ -436,7 +464,7 @@ export default function AnalyticsPage() {
 
                   {/* Multi-recruiter total row */}
                   {multiRecruiter && roleTotals && (
-                    <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-px bg-slate-200">
+                    <div className={cn("grid gap-px bg-slate-200", GRID)}>
                       <div className="bg-slate-50 px-4 py-2 flex items-center">
                         <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide pl-2">
                           {first.roleId} total
@@ -458,6 +486,9 @@ export default function AnalyticsPage() {
                         <span className="text-sm font-semibold text-emerald-600">{roleTotals.offered || "—"}</span>
                       </div>
                       <div className="bg-slate-50 px-3 py-2 text-center flex items-center justify-center">
+                        <span className="text-sm font-semibold text-sky-600">{roleTotals.onboarded || "—"}</span>
+                      </div>
+                      <div className="bg-slate-50 px-3 py-2 text-center flex items-center justify-center">
                         <span className="text-sm font-semibold text-red-500">{roleTotals.rejected || "—"}</span>
                       </div>
                       <div className="bg-slate-50 px-3 py-2 text-center flex items-center justify-center">
@@ -477,7 +508,7 @@ export default function AnalyticsPage() {
 
         {/* Footer totals */}
         {rows.length > 0 && (
-          <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-px bg-slate-200 border-t-2 border-slate-200">
+          <div className={cn("grid gap-px bg-slate-200 border-t-2 border-slate-200", GRID)}>
             <div className="bg-slate-50 px-4 py-3 flex items-center">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</span>
             </div>
@@ -493,6 +524,9 @@ export default function AnalyticsPage() {
             </div>
             <div className="bg-slate-50 px-3 py-3 text-center">
               <span className="text-sm font-bold text-emerald-700">{summary.offered}</span>
+            </div>
+            <div className="bg-slate-50 px-3 py-3 text-center">
+              <span className="text-sm font-bold text-sky-700">{summary.onboarded}</span>
             </div>
             <div className="bg-slate-50 px-3 py-3 text-center">
               <span className="text-sm font-bold text-red-600">{summary.rejected}</span>
@@ -534,9 +568,10 @@ export default function AnalyticsPage() {
                       interviews: acc.interviews + r.interviews,
                       selected:   acc.selected   + r.selected,
                       offered:    acc.offered    + r.offered,
+                      onboarded:  acc.onboarded  + r.onboarded,
                       rejected:   acc.rejected   + r.rejected,
                     }),
-                    { submitted: 0, interviews: 0, selected: 0, offered: 0, rejected: 0 }
+                    { submitted: 0, interviews: 0, selected: 0, offered: 0, onboarded: 0, rejected: 0 }
                   )
                 : null;
 
@@ -548,9 +583,9 @@ export default function AnalyticsPage() {
                       <span className="text-xs font-mono text-slate-400">{first.roleId}</span>
                       <span className={cn(
                         "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
-                        first.roleStatus === "Active"  ? "bg-green-100 text-green-700"  :
-                        first.roleStatus === "OnHold"  ? "bg-yellow-100 text-yellow-700":
-                        first.roleStatus === "Closed"  ? "bg-red-100 text-red-700"      :
+                        first.roleStatus === "Active"  ? "bg-green-100 text-green-700"   :
+                        first.roleStatus === "OnHold"  ? "bg-yellow-100 text-yellow-700" :
+                        first.roleStatus === "Closed"  ? "bg-red-100 text-red-700"       :
                         "bg-slate-100 text-slate-500"
                       )}>
                         {first.roleStatus}
@@ -570,7 +605,14 @@ export default function AnalyticsPage() {
                     >
                       {first.roleTitle}
                     </Link>
-                    <p className="text-xs text-slate-400 mt-0.5">{first.clientName}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <p className="text-xs text-slate-400">{first.clientName}</p>
+                      {first.pocName && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600">
+                          {first.pocName.split(" ")[0]}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Per-recruiter stats */}
@@ -603,10 +645,14 @@ export default function AnalyticsPage() {
                             <p className="text-sm font-semibold text-emerald-600">{row.offered || "—"}</p>
                           </div>
                           <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Onboarded</p>
+                            <p className="text-sm font-semibold text-sky-600">{row.onboarded || "—"}</p>
+                          </div>
+                          <div className="text-center">
                             <p className="text-xs text-slate-400 mb-0.5">Rejected</p>
                             <p className="text-sm font-semibold text-red-500">{row.rejected || "—"}</p>
                           </div>
-                          <div className="text-center">
+                          <div className="col-span-3 text-center mt-1">
                             <p className="text-xs text-slate-400 mb-0.5">Conversion</p>
                             <p className="text-sm font-semibold text-slate-600">
                               {row.submitted > 0 ? `${Math.round((row.selected / row.submitted) * 100)}%` : "—"}
@@ -640,10 +686,14 @@ export default function AnalyticsPage() {
                             <p className="text-sm font-bold text-emerald-600">{roleTotals.offered || "—"}</p>
                           </div>
                           <div className="text-center">
+                            <p className="text-xs text-slate-400 mb-0.5">Onboarded</p>
+                            <p className="text-sm font-bold text-sky-600">{roleTotals.onboarded || "—"}</p>
+                          </div>
+                          <div className="text-center">
                             <p className="text-xs text-slate-400 mb-0.5">Rejected</p>
                             <p className="text-sm font-bold text-red-500">{roleTotals.rejected || "—"}</p>
                           </div>
-                          <div className="text-center">
+                          <div className="col-span-3 text-center mt-1">
                             <p className="text-xs text-slate-400 mb-0.5">Conversion</p>
                             <p className="text-sm font-bold text-slate-600">
                               {roleTotals.submitted > 0 ? `${Math.round((roleTotals.selected / roleTotals.submitted) * 100)}%` : "—"}
@@ -679,10 +729,14 @@ export default function AnalyticsPage() {
                     <p className="text-sm font-bold text-emerald-700">{summary.offered}</p>
                   </div>
                   <div className="text-center">
+                    <p className="text-xs text-slate-400 mb-0.5">Onboarded</p>
+                    <p className="text-sm font-bold text-sky-700">{summary.onboarded}</p>
+                  </div>
+                  <div className="text-center">
                     <p className="text-xs text-slate-400 mb-0.5">Rejected</p>
                     <p className="text-sm font-bold text-red-600">{summary.rejected}</p>
                   </div>
-                  <div className="text-center">
+                  <div className="col-span-3 text-center mt-1">
                     <p className="text-xs text-slate-400 mb-0.5">Conversion</p>
                     <p className="text-sm font-bold text-slate-600">
                       {summary.submitted > 0 ? `${Math.round((summary.selected / summary.submitted) * 100)}%` : "—"}

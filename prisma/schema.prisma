@@ -42,6 +42,7 @@ enum MappingStatus {
   Offered
   Accepted
   Onboarding
+  Onboarded
   Rejected
   CandidateWithdrawn
 }

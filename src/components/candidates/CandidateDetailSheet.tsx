@@ -69,6 +69,7 @@ interface Props {
 export function CandidateDetailSheet({ candidateId, open, onOpenChange }: Props) {
   const [editOpen, setEditOpen] = useState(false);
   const [addMappingOpen, setAddMappingOpen] = useState(false);
+  const [deleteMapping, setDeleteMapping] = useState<{ id: string; roleTitle: string } | null>(null);
   const [form, setForm] = useState<CandidateForm>(emptyForm);
   const [pendingResumeFile, setPendingResumeFile] = useState<File | null>(null);
   const [resumeEditUploading, setResumeEditUploading] = useState(false);
@@ -136,6 +137,20 @@ export function CandidateDetailSheet({ candidateId, open, onOpenChange }: Props)
       queryClient.invalidateQueries({ queryKey: ["candidates"] });
       queryClient.invalidateQueries({ queryKey: ["kanban"] });
       setEditOpen(false);
+    },
+  });
+
+  const deleteMappingMutation = useMutation({
+    mutationFn: async (mappingId: string) => {
+      const res = await fetch(`/api/mappings/${mappingId}`, { method: "DELETE" });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Failed to remove"); }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["candidate", candidateId] });
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban"] });
+      setDeleteMapping(null);
     },
   });
 
@@ -311,7 +326,16 @@ export function CandidateDetailSheet({ candidateId, open, onOpenChange }: Props)
                             <p className="text-xs text-slate-400">{m.role.roleId} · {m.role.client.name}</p>
                             <p className="text-xs text-slate-400">{formatDate(m.submissionDate)}</p>
                           </div>
-                          <MappingStatusBadge status={m.status} />
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <MappingStatusBadge status={m.status} />
+                            <button
+                              onClick={() => setDeleteMapping({ id: m.id, roleTitle: m.role.title })}
+                              className="text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors p-1 rounded"
+                              title="Remove from role"
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -440,6 +464,34 @@ export function CandidateDetailSheet({ candidateId, open, onOpenChange }: Props)
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* ── Remove from Role Dialog ── */}
+      <Dialog open={!!deleteMapping} onOpenChange={(o) => !o && setDeleteMapping(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remove from role?</DialogTitle>
+            <DialogDescription>
+              This will unmap <strong>{candidate?.fullName}</strong> from{" "}
+              <strong>{deleteMapping?.roleTitle}</strong>. All pipeline history for this
+              mapping will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteMappingMutation.error && (
+            <p className="text-xs text-red-600">{(deleteMappingMutation.error as Error).message}</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeleteMapping(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={deleteMappingMutation.isPending}
+              onClick={() => deleteMapping && deleteMappingMutation.mutate(deleteMapping.id)}
+            >
+              {deleteMappingMutation.isPending ? "Removing…" : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Add to Role Dialog ── */}
       <Dialog open={addMappingOpen} onOpenChange={setAddMappingOpen}>
