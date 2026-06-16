@@ -220,9 +220,8 @@ export default function AnalyticsPage() {
       const res = await fetch(`/api/analytics?${params}`);
       return res.json();
     },
-    staleTime: 0,
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const rows       = data?.rows       ?? [];

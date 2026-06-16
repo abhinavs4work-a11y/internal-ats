@@ -5,12 +5,14 @@ import { logActivity } from "@/lib/services/mappings";
 import { ActionType, EntityType } from "@prisma/client";
 import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
 
-function getSupabaseAdmin() {
-  return createSupabaseAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+// Module-level singletons — created once per server process, not per request
+const supabaseAdmin = createSupabaseAdminClient(
+  (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, ""),
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// Once we've confirmed the bucket exists, skip the listBuckets call on subsequent uploads
+let bucketReady = false;
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
@@ -42,16 +44,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "File too large (max 10MB)" }, { status: 400 });
   }
 
-  const supabase = getSupabaseAdmin();
-
-  // Ensure the bucket exists and is public
-  const { data: buckets } = await supabase.storage.listBuckets();
-  const bucketExists = buckets?.some((b) => b.name === "resumes");
-  if (!bucketExists) {
-    const { error: bucketError } = await supabase.storage.createBucket("resumes", { public: true, fileSizeLimit: 10485760 });
+  // Ensure the bucket exists — only check once per server process
+  if (!bucketReady) {
+    const { error: bucketError } = await supabaseAdmin.storage.createBucket("resumes", {
+      public: true,
+      fileSizeLimit: 10485760,
+    });
     if (bucketError && !bucketError.message.includes("already exists")) {
       return NextResponse.json({ error: `Storage setup failed: ${bucketError.message}` }, { status: 500 });
     }
+    bucketReady = true;
   }
 
   const path = `${candidate.candidateId}/${Date.now()}.${ext}`;
@@ -59,11 +61,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Delete old resume if exists
   if (candidate.resumeUrl) {
     const oldPath = candidate.resumeUrl.split("/resumes/")[1];
-    if (oldPath) await supabase.storage.from("resumes").remove([oldPath]);
+    if (oldPath) await supabaseAdmin.storage.from("resumes").remove([oldPath]);
   }
 
   const arrayBuffer = await file.arrayBuffer();
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await supabaseAdmin.storage
     .from("resumes")
     .upload(path, arrayBuffer, { contentType: file.type, upsert: true });
 
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 });
   }
 
-  const { data: { publicUrl } } = supabase.storage.from("resumes").getPublicUrl(path);
+  const { data: { publicUrl } } = supabaseAdmin.storage.from("resumes").getPublicUrl(path);
 
   const updated = await prisma.candidate.update({
     where: { id },

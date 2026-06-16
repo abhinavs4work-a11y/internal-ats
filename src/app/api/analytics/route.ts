@@ -12,34 +12,34 @@ export async function GET(request: NextRequest) {
   const priority    = searchParams.get("priority")    ?? "";
   const poc         = searchParams.get("poc")         ?? "";
 
-  // Filter by role owner (RoleRecruiter), not by mapping submitter
-  const roles = await prisma.role.findMany({
-    where: {
-      ...(clientId    ? { clientId }                                        : {}),
-      ...(priority    ? { priority: priority as any }                      : {}),
-      ...(poc         ? { poc: { path: ["name"], equals: poc } }           : {}),
-      ...(recruiterId ? { recruiters: { some: { recruiterId } } }          : {}),
-    },
-    select: {
-      id:       true,
-      roleId:   true,
-      title:    true,
-      status:   true,
-      priority: true,
-      poc:      true,
-      client:   { select: { id: true, name: true } },
-      // Role's assigned owners — shown in the Owner column
-      recruiters: {
-        select: { recruiter: { select: { id: true, name: true } } },
-        orderBy: { createdAt: "asc" },
+  // Run roles query + filter-dropdown data in parallel
+  const [roles, clients, recruiters] = await Promise.all([
+    prisma.role.findMany({
+      where: {
+        ...(clientId    ? { clientId }                                        : {}),
+        ...(priority    ? { priority: priority as any }                      : {}),
+        ...(poc         ? { poc: { path: ["name"], equals: poc } }           : {}),
+        ...(recruiterId ? { recruiters: { some: { recruiterId } } }          : {}),
       },
-      // All mappings for this role regardless of who submitted them
-      mappings: {
-        select: { status: true },
+      select: {
+        id:       true,
+        roleId:   true,
+        title:    true,
+        status:   true,
+        priority: true,
+        poc:      true,
+        client:   { select: { id: true, name: true } },
+        recruiters: {
+          select: { recruiter: { select: { id: true, name: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+        mappings: { select: { status: true } },
       },
-    },
-    orderBy: [{ client: { name: "asc" } }, { roleId: "asc" }],
-  });
+      orderBy: [{ client: { name: "asc" } }, { roleId: "asc" }],
+    }),
+    prisma.client.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.user.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
 
   type Owner = { id: string; name: string };
 
@@ -124,21 +124,10 @@ export async function GET(request: NextRequest) {
     { submitted: 0, interviews: 0, selected: 0, offered: 0, rejected: 0, onboarded: 0 }
   );
 
-  const clients = await prisma.client.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-  const recruiters = await prisma.user.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
-  const allRolesForPoc = await prisma.role.findMany({
-    select: { poc: true },
-  });
+  // Extract unique POC names from the roles already fetched — no extra query needed
   const pocs = [
     ...new Set(
-      allRolesForPoc
+      roles
         .map((r) => (r.poc as { name?: string } | null)?.name)
         .filter((n): n is string => !!n)
     ),

@@ -126,6 +126,8 @@ model Role {
   recruiters RoleRecruiter[]
   mappings   CandidateRoleMapping[]
 
+  @@index([clientId])
+  @@index([status])
   @@map("roles")
 }
 
@@ -139,6 +141,7 @@ model RoleRecruiter {
   recruiter User @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, recruiterId])
+  @@index([recruiterId])
   @@map("role_recruiters")
 }
 
@@ -193,6 +196,9 @@ model CandidateRoleMapping {
   marginCalculation MarginCalculation?
 
   @@unique([candidateId, roleId])
+  @@index([roleId])
+  @@index([recruiterId])
+  @@index([status])
   @@map("candidate_role_mappings")
 }
 
@@ -237,5 +243,6 @@ model ActivityLog {
 
   @@index([entityType, entityId])
   @@index([timestamp])
+  @@index([userId])
   @@map("activity_logs")
 }

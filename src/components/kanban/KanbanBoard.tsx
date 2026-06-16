@@ -104,7 +104,6 @@ export function KanbanBoard({ roleId }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kanban", roleId] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["candidates"] });
     },
     onError: () => {
       setLocalColumns(serverColumns ?? null);
@@ -120,7 +119,6 @@ export function KanbanBoard({ roleId }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kanban", roleId] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["candidates"] });
     },
     onError: () => {
       setLocalColumns(serverColumns ?? null);
